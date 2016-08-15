@@ -24,6 +24,32 @@ from docopt import docopt
 logging.basicConfig(level=logging.INFO)
 
 
+def read_pixel(fits_file, pixel):
+    num_events = fits_file[1].data.shape[0]
+
+    data = pd.DataFrame()
+    for key in ('cellIDs', 'deltaT', 'Data'):
+        data[key] = (
+            fits_file[1].data[key][:, pixel * 300: (pixel + 1) * 300]
+            .ravel()
+            .byteswap()
+            .newbyteorder()
+        )
+
+    data['sample'] = np.tile(np.arange(300), num_events)
+    data.rename(
+        columns={
+            'cellIDs': 'cell',
+            'Data': 'adc_counts',
+            'deltaT': 'delta_t',
+        },
+        inplace=True,
+    )
+    data.dropna(inplace=True)
+
+    return data
+
+
 def f(x, a, b, c):
     return a * x ** b + c
 
@@ -31,7 +57,7 @@ def f(x, a, b, c):
 def fit(df, cell, plot=False):
     big_time = df.delta_t.quantile(0.75)
     p0 = [
-        9e-2,
+        0.3,
         -0.66,
         df.adc_counts[df.delta_t >= big_time].mean(),
     ]
@@ -72,20 +98,9 @@ def main():
         for pixel in range(1440):
             logging.info('%s', pixel)
 
-            data = pd.DataFrame()
-            for key in ('cellIDs', 'deltaT', 'Data'):
-                data[key] = (
-                    f[1].data[key][:, pixel * 300: (pixel + 1) * 300]
-                    .ravel()
-                    .byteswap()
-                    .newbyteorder()
-                )
-
-            data['sample'] = np.tile(np.arange(300), num_events)
-            data.rename(columns={'cellIDs': 'cell', 'Data': 'adc_counts', 'deltaT': 'delta_t'}, inplace=True)
-            data.dropna(inplace=True)
-
-            data = data[(data['sample'] > 10) & (data['sample'] < 280)]
+            data = read_pixel(f, pixel)
+            upper_limit = 240 if pixel % 9 == 8 else 290
+            data = data[(data['sample'] > 10) & (data['sample'] < upper_limit)]
 
             by_cell = data.groupby('cell')
             result = pd.DataFrame(
