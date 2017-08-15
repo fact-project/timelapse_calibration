@@ -1,31 +1,32 @@
-from argparse import ArgumentParser
-from astropy.io import fits
-from calc_calib_constants import read_pixel, f
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import click
 
+from astropy.io import fits
+from calc_calib_constants import read_pixel, f
 
 plt.style.use('ggplot')
 
-parser = ArgumentParser()
-parser.add_argument('datafile')
-parser.add_argument('calibconstants')
-parser.add_argument('-p', '--pixel', dest='pixel', type=int, default=0)
-parser.add_argument('-c', '--cell', dest='cell', type=int, default=0)
 
+@click.command()
+@click.argument('datafile',
+                type=click.Path(exists=True))
+@click.argument('calibconstants_path',
+                type=click.Path(exists=True))
+@click.argument('chid',
+                default=0)
+@click.argument('cell',
+                default=0)
+def main(datafile: str, calibconstants_path: str, chid: int, cell: int):
+    fits_file = fits.open(datafile)
 
-if __name__ == '__main__':
-
-    args = parser.parse_args()
-    fits_file = fits.open(args.datafile)
-
-    pixel_data = read_pixel(fits_file, args.pixel).query('cell == @args.cell')
-    calibconstants = pd.read_hdf(args.calibconstants)
+    pixel_data = read_pixel(fits_file, chid).query('cell == @cell')
+    calibconstants = pd.read_hdf(calibconstants_path)
 
     t = np.logspace(-4, -0.5, 10000)
 
-    plt.title('Pixel {}, Cell {}'.format(args.pixel, args.cell))
+    plt.title('Pixel {}, Cell {}'.format(chid, cell))
 
     mask1 = pixel_data['sample'] > 9
     mask2 = pixel_data['sample'] <= 240
@@ -54,7 +55,7 @@ if __name__ == '__main__':
 
     plt.axvline(2**14 * 1e-6)
 
-    q = 'pixel == @args.pixel & cell == @args.cell'
+    q = 'pixel == @chid & cell == @cell'
     params = calibconstants.query(q)[['a', 'b', 'c']].values[0]
 
     plt.plot(
@@ -62,8 +63,8 @@ if __name__ == '__main__':
         f(t, *params),
     )
 
-    low = pixel_data.adc_counts.min() # quantile(0.01)
-    high = pixel_data.adc_counts.max() # quantile(0.99)
+    low = pixel_data.adc_counts.min()  # quantile(0.01)
+    high = pixel_data.adc_counts.max()  # quantile(0.99)
 
     r = high - low
 
@@ -79,3 +80,7 @@ if __name__ == '__main__':
     plt.legend()
 
     plt.show()
+
+
+if __name__ == '__main__':
+    main()

@@ -1,14 +1,15 @@
-from argparse import ArgumentParser
-from astropy.table import Table
 import pandas as pd
+import click
 
-parser = ArgumentParser()
-parser.add_argument('inputfile')
-parser.add_argument('outputfile')
+from astropy.table import Table
 
 
-if __name__ == '__main__':
-
+@click.command()
+@click.argument('source_file_path',
+                type=click.Path(exists=True))
+@click.argument('store_file_path',
+                type=click.Path(exists=False))
+def main(source_file_path: str, store_file_path: str):
     args = parser.parse_args()
 
     df = pd.read_hdf(args.inputfile)
@@ -19,3 +20,7 @@ if __name__ == '__main__':
         t[key] = df[key].astype('float32').values
 
     t.write(args.outputfile)
+
+
+if __name__ == '__main__':
+    main()
